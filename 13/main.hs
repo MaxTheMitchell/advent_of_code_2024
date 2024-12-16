@@ -21,44 +21,46 @@ gold = solveMachines . map addAlot . parse
 type Machine = (Button, Button, Prize)
 type Prize = (Integer, Integer)
 type Button = (Integer, Integer)
-type Pos = (Integer, Integer)
-type Cache = Map.Map Pos (Maybe Integer)
 
 addAlot :: Machine -> Machine 
 addAlot (a, b, (x, y)) = (a, b, (x + 10000000000000, y + 10000000000000))
 
 solveMachines :: [Machine] -> Integer
-solveMachines = sum . Maybe.mapMaybe (snd . solveMachine Map.empty (0, 0))
+solveMachines = sum . Maybe.mapMaybe solveMatchineMathly
 
+solveMatchineMathly :: Machine -> Maybe Integer
+solveMatchineMathly machine = do
+    bPresses <- findBPresses machine
+    aPresses <- findAPresses machine bPresses
+    return $ aPresses * 3 + bPresses
 
-solveMachine :: Cache -> Pos -> Machine -> (Cache, Maybe Integer) 
-solveMachine cache pos machine@(a, b, _)
-    | atPrize pos machine = (cache, Just 0)
-    | not $ inBounds pos machine = (cache, Nothing)
-    | Map.member pos cache = (cache, (Map.!) cache pos) 
-    | otherwise = 
-        let 
-            (cacheA, aPress) = solveMachine cache (pressButton pos a) machine
-            (cacheB, bPress) = solveMachine cacheA (pressButton pos b) machine
-            val = case (aPress, bPress) of  
-                (Just a, Just b) -> Just $ min (a + 3) (b + 1) 
-                (Just a, Nothing) -> Just $ a + 3
-                (Nothing, Just b) -> Just $ b + 1
-                (Nothing, Nothing) -> Nothing
-        in 
-            (Map.insert pos val cacheB, val)
+findAPresses :: Machine -> Integer -> Maybe Integer 
+findAPresses ((ax, ay), (bx, by), (px, py)) bPresses =
+    maybeInt $ fromInteger (px - bx*bPresses) / fromInteger ax 
+    --  px = ax*pressA + bx*pressB
+    -- px - bx*pressB = ax*pressA
+    -- (px - bx*pressB)/ax = PressA 
 
-pressButton :: Pos -> Button -> Pos
-pressButton (px, py) (bx, by) = (px + bx, py + by)
+findBPresses :: Machine -> Maybe Integer
+findBPresses ((ax, ay), (bx, by), (px, py)) = 
+    maybeInt $ fromInteger (py*ax - px*ay) / fromInteger (by*ax - bx*ay)
+    --  px = ax*pressA + bx*pressB
+    -- px - bx*pressB = ax*pressA
+    -- (px/ax) - ((bx*pressB)/ax) = pressA
 
-atPrize :: Pos -> Machine -> Bool 
-atPrize = checkPos (==)
+    -- (px/ax) - ((bx*pressB)/ax) = (py/ay) - ((by*pressB)/ay)
+    -- (px*ay) - (bx*pressB*ay) = (py*ax) - (by*pressB*ax)
+    -- (by*pressB*ax) - (bx*pressB*ay) = (py*ax) - (px*ay)
+    -- pressB(by*ax - bx*ay) = (py*ax) - (px*ay)
+    -- pressB = (py*ax) - (px*ay) / (by*ax - bx*ay)
 
-inBounds :: Pos -> Machine -> Bool
-inBounds = checkPos (<=) 
+maybeInt :: (RealFrac n) => n -> Maybe Integer
+maybeInt n
+    | isInt n = Just $ round n
+    | otherwise = Nothing
 
-checkPos :: (Integer -> Integer -> Bool) -> Pos -> Machine -> Bool
-checkPos  f (x, y) (_, _, (prizeX, prizeY)) = f x prizeX && f y prizeY
+isInt :: (RealFrac n) => n -> Bool 
+isInt n = n == fromInteger (round n) 
 
 parse :: String -> [Machine]
 parse = map parseMachine . Split.splitOn "\n\n"
